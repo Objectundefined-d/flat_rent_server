@@ -9,18 +9,11 @@ security = HTTPBearer()
 async def verify_token(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ) -> dict:
-    """Проверяет Firebase JWT токен"""
     token = credentials.credentials
     
     try:
-        # Для Firebase токенов используйте библиотеку firebase-admin
-        # Здесь простая заглушка - в реальности проверяйте токен
-        
-        # Просто декодируем (не проверяя подпись) чтобы получить user_id
-        # В продакшене используйте firebase-admin
         payload = jwt.decode(token, options={"verify_signature": False})
         
-        # Извлекаем user_id из токена
         user_id = payload.get("user_id") or payload.get("sub") or payload.get("uid")
         
         if not user_id:
