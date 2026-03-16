@@ -3,6 +3,7 @@ from firebase_admin import credentials, firestore, messaging
 import os
 import json
 import threading
+import time
 
 def init_firebase():
     if not firebase_admin._apps:
@@ -20,6 +21,8 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
     token2 = user2.get("fcmToken")
     name1  = user1.get("name", "Кто-то")
     name2  = user2.get("name", "Кто-то")
+
+    print(f"token1={token1}, token2={token2}")
 
     messages = []
 
@@ -46,34 +49,51 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
     if messages:
         response = messaging.send_each(messages)
         print(f"Уведомления отправлены для матча {match_id}: {response.success_count} успешно")
+    else:
+        print(f"Матч {match_id}: токены не найдены, уведомления не отправлены")
 
     db.collection("matches").document(match_id).update({"notificationSent": True})
 
+def _listener_loop():
+    while True:
+        try:
+            db = firestore.client()
+            done = threading.Event()
+
+            def on_snapshot(col_snapshot, changes, read_time):
+                for change in changes:
+                    if change.type.name != "ADDED":
+                        continue
+
+                    match_data = change.document.to_dict()
+                    match_id   = change.document.id
+
+                    if match_data.get("notificationSent"):
+                        continue
+
+                    uids = match_data.get("uids", [])
+                    if len(uids) < 2:
+                        continue
+
+                    print(f"Новый матч обнаружен: {match_id}")
+
+                    user_id1 = uids[0]
+                    user_id2 = uids[1]
+
+                    try:
+                        send_match_notifications(match_id, user_id1, user_id2)
+                    except Exception as e:
+                        print(f"Ошибка для матча {match_id}: {e}")
+
+            watch = db.collection("matches").on_snapshot(on_snapshot)
+            print("Слушатель матчей запущен")
+
+            done.wait()
+
+        except Exception as e:
+            print(f"Слушатель упал, перезапускаем через 10 сек: {e}")
+            time.sleep(10)
+
 def start_matches_listener():
-    db = firestore.client()
-
-    def on_snapshot(col_snapshot, changes, read_time):
-        for change in changes:
-            if change.type.name != "ADDED":
-                continue
-
-            match_data = change.document.to_dict()
-            match_id   = change.document.id
-
-            if match_data.get("notificationSent"):
-                continue
-
-            uids = match_data.get("uids", [])
-            if len(uids) < 2:
-                continue
-
-            user_id1 = uids[0]
-            user_id2 = uids[1]
-
-            try:
-                send_match_notifications(match_id, user_id1, user_id2)
-            except Exception as e:
-                print(f"Ошибка для матча {match_id}: {e}")
-
-    db.collection("matches").on_snapshot(on_snapshot)
-    print("Слушатель матчей запущен")
+    thread = threading.Thread(target=_listener_loop, daemon=True)
+    thread.start()
