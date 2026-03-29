@@ -29,21 +29,25 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
     if token1:
         messages.append(messaging.Message(
             token=token1,
-            notification=messaging.Notification(
-                title="У вас мэтч",
-                body=f"Вы и {name2} понравились друг другу",
-            ),
-            data={"type": "match", "matchId": match_id, "otherUid": user_id2}, 
+            data={
+                "type": "match",
+                "matchId": match_id,
+                "otherUid": user_id2,
+                "title": "У вас мэтч",      
+                "body": f"Вы и {name2} понравились друг другу" 
+            },
         ))
 
     if token2:
         messages.append(messaging.Message(
             token=token2,
-            notification=messaging.Notification(
-                title="У вас мэтч",
-                body=f"Вы и {name1} понравились друг другу",
-            ),
-            data={"type": "match", "matchId": match_id, "otherUid": user_id1}, 
+            data={
+                "type": "match",
+                "matchId": match_id,
+                "otherUid": user_id1,
+                "title": "У вас мэтч",
+                "body": f"Вы и {name1} понравились друг другу"
+            },
         ))
 
     if messages:
@@ -76,14 +80,12 @@ def send_message_notification(chat_id: str, sender_uid: str, text: str):
 
     message = messaging.Message(
         token=token,
-        notification=messaging.Notification(
-            title=sender_name,
-            body=text if len(text) <= 100 else text[:97] + "...",
-        ),
         data={
-            "type": "message", 
+            "type": "message",
             "chatId": chat_id,
-            "otherUid": sender_uid
+            "otherUid": sender_uid,
+            "title": sender_name,
+            "body": text if len(text) <= 100 else text[:97] + "..."
         },
     )
 
