@@ -22,6 +22,9 @@ def send_match_notifications(match_id, user_id1, user_id2):
     name1  = user1.get("name", "Кто-то")
     name2  = user2.get("name", "Кто-то")
 
+    print(f"user1 notifyMatches: {user1.get('notifyMatches', 'поле отсутствует')}")
+    print(f"user2 notifyMatches: {user2.get('notifyMatches', 'поле отсутствует')}")
+
     messages = []
 
     if token1 and user1.get("notifyMatches", True): 
