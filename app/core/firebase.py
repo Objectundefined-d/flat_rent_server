@@ -11,7 +11,7 @@ def init_firebase():
         cred = credentials.Certificate(service_account)
         firebase_admin.initialize_app(cred)
 
-def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
+def send_match_notifications(match_id, user_id1, user_id2):
     db = firestore.client()
 
     user1 = db.collection("users").document(user_id1).get().to_dict() or {}
@@ -22,23 +22,21 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
     name1  = user1.get("name", "Кто-то")
     name2  = user2.get("name", "Кто-то")
 
-    print(f"token1={token1}, token2={token2}")
-
     messages = []
 
-    if token1:
+    if token1 and user1.get("notifyMatches", True): 
         messages.append(messaging.Message(
             token=token1,
             data={
                 "type": "match",
                 "matchId": match_id,
                 "otherUid": user_id2,
-                "title": "У вас мэтч",      
-                "body": f"Вы и {name2} понравились друг другу" 
+                "title": "У вас мэтч",
+                "body": f"Вы и {name2} понравились друг другу"
             },
         ))
 
-    if token2:
+    if token2 and user2.get("notifyMatches", True): 
         messages.append(messaging.Message(
             token=token2,
             data={
@@ -71,6 +69,10 @@ def send_message_notification(chat_id: str, sender_uid: str, text: str):
     sender = db.collection("users").document(sender_uid).get().to_dict() or {}
     receiver = db.collection("users").document(receiver_uid).get().to_dict() or {}
 
+    if not receiver.get("notifyMessages", True): 
+        print(f"Уведомления о сообщениях отключены для {receiver_uid}")
+        return
+    
     token = receiver.get("fcmToken")
     sender_name = sender.get("name", "Кто-то")
 
