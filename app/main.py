@@ -5,7 +5,8 @@ import os
 import threading
 from .api import photos
 from .core.config import settings
-from .core.firebase import init_firebase, start_matches_listener  # ← добавь
+from .core.firebase import init_firebase, start_matches_listener
+from .core.firebase import init_firebase, start_matches_listener, start_messages_listener
 
 app = FastAPI(
     title="Photo Storage API",
@@ -29,8 +30,8 @@ app.mount("/files", StaticFiles(directory=settings.UPLOAD_DIR), name="files")
 @app.on_event("startup")
 async def startup_event():
     init_firebase()
-    thread = threading.Thread(target=start_matches_listener, daemon=True)
-    thread.start()
+    threading.Thread(target=start_matches_listener, daemon=True).start()
+    threading.Thread(target=start_messages_listener, daemon=True).start()
 
 @app.get("/")
 async def root():

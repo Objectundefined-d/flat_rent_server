@@ -33,7 +33,7 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
                 title="У вас мэтч",
                 body=f"Вы и {name2} понравились друг другу",
             ),
-            data={"matchId": match_id, "otherUid": user_id2},
+            data={"type": "match", "matchId": match_id, "otherUid": user_id2}, 
         ))
 
     if token2:
@@ -43,7 +43,7 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
                 title="У вас мэтч",
                 body=f"Вы и {name1} понравились друг другу",
             ),
-            data={"matchId": match_id, "otherUid": user_id1},
+            data={"type": "match", "matchId": match_id, "otherUid": user_id1}, 
         ))
 
     if messages:
@@ -53,6 +53,90 @@ def send_match_notifications(match_id: str, user_id1: str, user_id2: str):
         print(f"Матч {match_id}: токены не найдены, уведомления не отправлены")
 
     db.collection("matches").document(match_id).update({"notificationSent": True})
+
+
+def send_message_notification(chat_id: str, sender_uid: str, text: str):
+    db = firestore.client()
+
+    chat = db.collection("chats").document(chat_id).get().to_dict() or {}
+    member_uids = chat.get("memberUids", [])
+    receiver_uid = next((uid for uid in member_uids if uid != sender_uid), None)
+    if not receiver_uid:
+        return
+
+    sender = db.collection("users").document(sender_uid).get().to_dict() or {}
+    receiver = db.collection("users").document(receiver_uid).get().to_dict() or {}
+
+    token = receiver.get("fcmToken")
+    sender_name = sender.get("name", "Кто-то")
+
+    if not token:
+        print(f"Нет токена для {receiver_uid}")
+        return
+
+    message = messaging.Message(
+        token=token,
+        notification=messaging.Notification(
+            title=sender_name,
+            body=text if len(text) <= 100 else text[:97] + "...",
+        ),
+        data={
+            "type": "message", 
+            "chatId": chat_id,
+            "otherUid": sender_uid
+        },
+    )
+
+    response = messaging.send(message)
+    print(f"Уведомление о сообщении отправлено: {response}")
+
+
+def _messages_listener_loop():
+    while True:
+        try:
+            db = firestore.client()
+            done = threading.Event()
+
+            def on_snapshot(col_snapshot, changes, read_time):
+                for change in changes:
+                    if change.type.name != "ADDED":
+                        continue
+
+                    msg_data = change.document.to_dict()
+
+                    if msg_data.get("notificationSent"):
+                        continue
+
+                    sender_uid = msg_data.get("senderUid")
+                    text = msg_data.get("text", "")
+                    chat_id = change.document.reference.parent.parent.id
+
+                    if not sender_uid or not text:
+                        continue
+
+                    print(f"Новое сообщение в чате {chat_id} от {sender_uid}")
+
+                    try:
+                        send_message_notification(chat_id, sender_uid, text)
+                        # помечаем что уведомление отправлено
+                        change.document.reference.update({"notificationSent": True})
+                    except Exception as e:
+                        print(f"Ошибка уведомления о сообщении: {e}")
+
+            watch = db.collection_group("messages").on_snapshot(on_snapshot)
+            print("Слушатель сообщений запущен")
+
+            done.wait()
+
+        except Exception as e:
+            print(f"Слушатель сообщений упал, перезапускаем через 10 сек: {e}")
+            time.sleep(10)
+
+
+def start_messages_listener():
+    thread = threading.Thread(target=_messages_listener_loop, daemon=True)
+    thread.start()
+
 
 def _listener_loop():
     while True:
@@ -66,7 +150,7 @@ def _listener_loop():
                         continue
 
                     match_data = change.document.to_dict()
-                    match_id   = change.document.id
+                    match_id = change.document.id
 
                     if match_data.get("notificationSent"):
                         continue
