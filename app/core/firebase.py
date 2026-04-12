@@ -7,8 +7,16 @@ import time
 
 def init_firebase():
     if not firebase_admin._apps:
-        service_account = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT"])
-        cred = credentials.Certificate(service_account)
+        # Приоритет: сначала путь к файлу
+        if os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH"):
+            cred = credentials.Certificate(os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH"))
+        # Если нет пути, но есть JSON-строка
+        elif os.getenv("FIREBASE_SERVICE_ACCOUNT"):
+            service_account = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT"])
+            cred = credentials.Certificate(service_account)
+        else:
+            raise ValueError("Не задана ни FIREBASE_SERVICE_ACCOUNT_PATH, ни FIREBASE_SERVICE_ACCOUNT")
+        
         firebase_admin.initialize_app(cred)
 
 def send_match_notifications(match_id, user_id1, user_id2):
