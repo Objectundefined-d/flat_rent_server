@@ -15,4 +15,4 @@ uploads/
 .vscode/
 .idea/
 *.swp
-*.swo
+*.swofirebase-service-account.json
